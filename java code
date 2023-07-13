@@ -1,0 +1,124 @@
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.PDPageContentStream.AppendMode;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+import java.io.File;
+import mport java.io.FileReader;
+import java.io.IOException;
+
+public class VoucherService {
+    public static void main(String[] args) throws IOException {
+        Document document = null;
+        try{
+            // 1. Remove "Agent Reference" in the header
+            Elements agentReference = doc.select("td:contains(Agent Reference)");
+            agentReference.remove();
+
+            // 2. Remove "Reference Number" and "Itinerary Number" from Voucher Details section
+            Elements voucherDetailsTable = doc.select("table#voucherGeneralDetails");
+            voucherDetailsTable.select("td:contains(Reference Number), td:contains(Itinerary Number)").remove();
+
+            // 3. Update the vendor image with Unravel's image
+            Element vendorImage = doc.select("img[src='https://vidzee.s3.ap-south-1.amazonaws.com/vendor.png']").first();
+            vendorImage.attr("src", "https://example.com/unravel.png");
+
+            // 4. Change section title and row labels in "PASSENGER DETAILS"
+            Element passengerDetailsTitle = doc.select("td:contains(PASSENGER DETAILS)").first();
+            passengerDetailsTitle.text("GUEST & STAY DETAILS");
+
+            Elements passengerDetailRows = doc.select("table#passengerDetails tr");
+            for (Element row : passengerDetailRows) {
+                if (row.text().contains("Passenger Name")) {
+                    row.select("td:eq(0)").first().text("Guest Name");
+                } else if (row.text().contains("Passenger Nationality")) {
+                    row.select("td:eq(0)").first().text("Guest Nationality");
+                }
+            }
+
+            // 5. Replace "Additional Services and Requests" with "No services/requests availed"
+            Element additionalServicesRow = doc.select("td:contains(Additional Services)").first();
+            Element additionalRequestsRow = doc.select("td:contains(Additional Requests)").first();
+
+            if (additionalServicesRow != null && additionalRequestsRow != null) {
+                String additionalServices = additionalServicesRow.nextElementSibling().text();
+                String additionalRequests = additionalRequestsRow.nextElementSibling().text();
+
+                if (additionalServices.equalsIgnoreCase("none") && additionalRequests.equalsIgnoreCase("none")) {
+                    additionalServicesRow.text("No services/requests availed");
+                    additionalRequestsRow.remove();
+                } else if (additionalServices.equalsIgnoreCase("none")) {
+                    additionalServicesRow.remove();
+                } else if (additionalRequests.equalsIgnoreCase("none")) {
+                    additionalRequestsRow.remove();
+                }
+            }
+
+            // 6. Convert room rate information to INR
+            Elements rateRows = doc.select("table[style*=color: #333333] tr:has(td)");
+
+            for (Element row : rateRows) {
+                Element rateCell = row.select("td:eq(1)").first();
+                String rateText = rateCell.text();
+
+                if (rateText.contains("USD")) {
+                    String amountString = rateText.replaceAll("[^\\d.]", "");
+                    double usdAmount = Double.parseDouble(amountString);
+                    double inrAmount = usdAmount * 75; // Conversion rate: 1 USD = 75 INR
+                    String inrAmountString = String.format("%.2f", inrAmount);
+
+                    rateCell.text("INR " + inrAmountString);
+                }
+            }
+
+            // Update the total payable amount in INR
+            Element totalPayableRow = doc.select("p:contains(Total Payable for this Booking)").first();
+            String totalPayableText = totalPayableRow.text();
+            String usdAmountString = totalPayableText.replaceAll("[^\\d.]", "");
+            double usdAmount = Double.parseDouble(usdAmountString);
+            double inrAmount = usdAmount * 75; // Conversion rate: 1 USD = 75 INR
+            String inrAmountString = String.format("%.2f", inrAmount);
+            totalPayableRow.text("Total Payable for this Booking: " + inrAmountString + " INR");
+
+            // 7. Replace the vendor contact information with Unravel's information
+            Element contactInfoSection = doc.select("p:contains(Operations Team)").first();
+            contactInfoSection.html("Contact us for any queries at, Unravel Support<br/>Email: support@gounravel.com");}catch(Exception ex){system.out.println(ex.getMessage());}
+
+            // Save the modified HTML file
+            File outputFile = new File("path/to/modified_voucher.html");
+            String modifiedHtml = document.html();
+            System.out.println("modifiedHtml = " + modifiedHtml);
+            // Write the modified HTML to the output file
+            // ...
+
+            System.out.println("Voucher modifications completed successfully!");
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        // Generate the PDF
+        PDDocument pdfDocument = new PDDocument();
+        PDPage page = new PDPage(PDRectangle.A4);
+        pdfDocument.addPage(page);
+
+        try (PDPageContentStream contentStream = new PDPageContentStream(pdfDocument, page, AppendMode.APPEND, true)) {
+//            contentStream.setFont(PDType1Font., 12);
+            contentStream.beginText();
+            contentStream.newLineAtOffset(50, 700);
+            contentStream.showText(document.html());
+            contentStream.endText();
+            contentStream.close();
+        }
+
+        // Save the PDF file
+        File outputFile = new File("path/to/output.pdf");
+        pdfDocument.save(outputFile);
+        pdfDocument.close();
+    }
+    }
+
